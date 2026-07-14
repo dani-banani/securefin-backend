@@ -1,9 +1,7 @@
-# ==========================================
-# SECRETS & ENVIRONMENT VARIABLES (CRITICAL)
-# ==========================================
+
 .env
 .env.*
-*.pem
+private.pem
 *.key
 secrets.json
 
