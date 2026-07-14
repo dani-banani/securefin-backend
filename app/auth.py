@@ -7,7 +7,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import os
 
+def get_private_key():
+    raw_key = os.getenv("PRIVATE_KEY_CONTENT")
+    if raw_key:
+        return raw_key.replace("\\n", "\n")
+    if os.path.exists("private.pem"):
+        with open("private.pem", "r") as f:
+            return f.read()
+    raise ValueError("Private key not found in environment or file system.")
+
+PRIVATE_KEY = get_private_key()
 if os.path.exists("private.pem"):
     with open("private.pem", "r") as f:
         PRIVATE_KEY = f.read()
