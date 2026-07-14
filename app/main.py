@@ -1,13 +1,17 @@
+from fastapi import Request
+from fastapi import Security
 from fastapi import FastAPI, Depends, HTTPException, status, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyCookie
 from supabase import Client
-from fastapi import Request
 from app.auth import verify_access_token
 from app.database import get_db
 from app.models import FundRequest, UserCreate, UserLogin, UserUpdate
 from app.auth import hash_password, verify_password, create_access_token
 from app.models import UserCreate, UserLogin, TransactionCreate, TransactionResponse
 import random
+
+oauth2_scheme = APIKeyCookie(name="access_token", auto_error=False)
 
 # initialize FastAPI app
 app = FastAPI(
