@@ -6,8 +6,6 @@ from app.auth import verify_access_token
 from app.database import get_db
 from app.models import FundRequest, UserCreate, UserLogin, UserUpdate
 from app.auth import hash_password, verify_password, create_access_token
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from app.models import UserCreate, UserLogin, TransactionCreate, TransactionResponse
 import random
 
@@ -28,8 +26,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 from fastapi.responses import RedirectResponse
@@ -289,7 +287,7 @@ async def update_user(
         raise HTTPException(status_code=403, detail="Not authorized to modify this profile")
 
     # Only update fields that were actually provided in the request
-    update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
+    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
     
     if not update_dict:
         raise HTTPException(status_code=400, detail="No data provided to update")
