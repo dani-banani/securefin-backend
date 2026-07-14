@@ -5,9 +5,8 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
-import os
-import os
+ALGORITHM = "RS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
 def get_private_key():
     raw_key = os.getenv("PRIVATE_KEY_CONTENT")
@@ -18,14 +17,21 @@ def get_private_key():
             return f.read()
     raise ValueError("Private key not found in environment or file system.")
 
+def get_public_key():
+    if os.path.exists("public.pem"):
+        with open("public.pem", "r") as f:
+            return f.read()
+    raise ValueError("public.pem file not found.")
+
+
 PRIVATE_KEY = get_private_key()
+PUBLIC_KEY = get_public_key()
+
 if os.path.exists("private.pem"):
     with open("private.pem", "r") as f:
         PRIVATE_KEY = f.read()
 else:
     PRIVATE_KEY = os.getenv("PRIVATE_KEY_CONTENT").replace("\\n", "\n")
-ALGORITHM = "RS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
 # Hash password
 def hash_password(password: str) -> str:
