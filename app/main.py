@@ -283,7 +283,7 @@ async def get_user_profile(
         raise HTTPException(status_code=403, detail="Not authorized to view this profile")
 
     # Fetch data
-    response = db.table("users").select("id, username, role, balance, account_number").eq("id", user_id).execute()
+    response = db.table("users").select("id, username, name, role, balance, account_number").eq("id", user_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="User not found")
         

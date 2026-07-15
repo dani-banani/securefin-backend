@@ -4,13 +4,12 @@ import re
 
 # AUTHENTICATION MODELS
 class UserLogin(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50, description="Alphanumeric username")
-    password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
-    name: str = Field(..., min_length=1)
+    username: str
+    password: str
 
 class UserCreate(UserLogin):
     """Extends UserLogin with strict password complexity rules for registration."""
-    
+    name: str = Field(..., min_length=1)
     @field_validator('password')
     @classmethod
     def validate_password_complexity(cls, v):
