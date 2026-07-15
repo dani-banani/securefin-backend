@@ -1,29 +1,44 @@
-from fastapi import Request
-from fastapi import Security
-from fastapi import FastAPI, Depends, HTTPException, status, Response
+from fastapi import FastAPI, Depends, HTTPException, status, Response, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyCookie
+from fastapi.responses import RedirectResponse, JSONResponse
 from supabase import Client
-from app.auth import verify_access_token
 from app.database import get_db
-from app.models import FundRequest, UserCreate, UserLogin, UserUpdate
-from app.auth import hash_password, verify_password, create_access_token
-from app.models import UserCreate, UserLogin, TransactionCreate, TransactionResponse
+from app.models import FundRequest, UserCreate, UserLogin, UserUpdate, TransactionCreate, TransactionResponse
+from app.auth import hash_password, verify_password, create_access_token, verify_access_token
 import random
+from fastapi.exceptions import HTTPException as StarletteHTTPException
+
+def raise_error(message: str, type: str, status_code: int = 400):
+    raise HTTPException(
+        status_code=status_code,
+        detail={"message": message, "type": type}
+    )
 
 oauth2_scheme = APIKeyCookie(name="access_token", auto_error=False)
 
-# initialize FastAPI app
 app = FastAPI(
     title="SecureFin API",
     description="Backend for the SecureFin Portal",
     version="1.0.0"
 )
 
-# whitelist frontend and localhost
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if isinstance(exc.detail, dict):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": {"message": str(exc.detail), "type": "general"}},
+    )
+
 ORIGINS = [
     "https://secure-fin-auth-frontend-production.up.railway.app",
     "http://localhost:5173",
+    "http://localhost:5174",
 ]
 
 app.add_middleware(
@@ -33,8 +48,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from fastapi.responses import RedirectResponse
 
 @app.get("/", include_in_schema=False)
 async def root():
@@ -51,7 +64,7 @@ async def register_user(user: UserCreate, db: Client = Depends(get_db)):
     #check if user already exists
     existing_user = db.table("users").select("*").eq("username", user.username).execute()
     if existing_user.data:
-        raise HTTPException(status_code=400, detail="Username already registered")
+        raise_error("Email already exist", "username")
     #hash the password securely using bcrypt
     hashed_pw = hash_password(user.password)
     account_num = str(random.randint(10000000, 99999999))
@@ -82,7 +95,7 @@ async def login_user(credentials: UserLogin, response: Response, db: Client = De
 
     #verify password against the stored bcrypt hash
     if not verify_password(credentials.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise_error("Invalid password or username", "auth", status_code=401)
 
     #generate Asymmetric JWT Token
     token_data = {"sub": user["id"], "role": user["role"], "username": user["username"]}
@@ -119,12 +132,12 @@ async def logout_user(response: Response):
     )
     return {"message": "Logged out successfully"}
 
-def get_current_user(request: Request):
+def get_current_user(request: Request, token: str = Security(oauth2_scheme)):
     """
     Dependency to extract the JWT from the secure HttpOnly cookie 
     and verify the user's session.
     """
-    token = request.cookies.get("access_token")
+    token = request.cookies.get("access_token") or token
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated. Please log in.")
     
@@ -142,6 +155,7 @@ def require_admin(current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Insufficient privileges. Admin access required.")
     return current_user
+
 @app.post("/api/transactions", status_code=status.HTTP_201_CREATED)
 async def create_transaction(
     transaction: TransactionCreate, 
@@ -159,10 +173,7 @@ async def create_transaction(
     current_balance = user_record.data[0]["balance"]
 
     if transaction.amount > current_balance:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Insufficient funds. Your balance is ${current_balance:.2f}"
-        )
+        raise_error(f"Insufficient funds. Your balance is ${current_balance:.2f}", "funds")
 
     recipient_check = db.table("users").select("id").eq("account_number", transaction.recipient_account).execute()
     
@@ -245,6 +256,7 @@ async def reject_transaction(
     }).execute()
 
     return {"message": "Transaction has been successfully rejected."}
+
 @app.get("/api/users/{user_id}")
 async def get_user_profile(
     user_id: str, 
