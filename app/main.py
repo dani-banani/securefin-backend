@@ -32,7 +32,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     message = error["msg"].replace("Value error, ", "")
     return JSONResponse(
         status_code=422,
-        content={"detail": {"message": message, "type": error_type}},
+        content={"message": message, "type": error_type},
     )
 
 
