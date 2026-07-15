@@ -7,7 +7,9 @@ from app.database import get_db
 from app.models import FundRequest, UserCreate, UserLogin, UserUpdate, TransactionCreate, TransactionResponse
 from app.auth import hash_password, verify_password, create_access_token, verify_access_token
 import random
-from fastapi.exceptions import HTTPException as StarletteHTTPException
+from fastapi.exceptions import HTTPException as StarletteHTTPException 
+from fastapi.exceptions import RequestValidationError
+
 
 def raise_error(message: str, type: str, status_code: int = 400):
     raise HTTPException(
@@ -22,6 +24,17 @@ app = FastAPI(
     description="Backend for the SecureFin Portal",
     version="1.0.0"
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    error = exc.errors()[0]
+    error_type = str(error["loc"][-1]) 
+    message = error["msg"].replace("Value error, ", "")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": {"message": message, "type": error_type}},
+    )
+
 
 @app.exception_handler(StarletteHTTPException)
 async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
