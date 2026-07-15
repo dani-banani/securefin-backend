@@ -77,13 +77,15 @@ async def register_user(user: UserCreate, db: Client = Depends(get_db)):
     #check if user already exists
     existing_user = db.table("users").select("*").eq("username", user.username).execute()
     if existing_user.data:
-        raise_error("Email already exist", "username")
+        raise_error("username already exist", "username")
+    formatted_name = user.name.upper()
     #hash the password securely using bcrypt
     hashed_pw = hash_password(user.password)
     account_num = str(random.randint(10000000, 99999999))
     #insert into Supabase database
     new_user = {
         "username": user.username,
+        "name": formatted_name,
         "password_hash": hashed_pw,
         "role": "user",
         "account_number": account_num

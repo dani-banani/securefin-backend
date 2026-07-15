@@ -6,6 +6,7 @@ import re
 class UserLogin(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="Alphanumeric username")
     password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
+    name: str = Field(..., min_length=1)
 
 class UserCreate(UserLogin):
     """Extends UserLogin with strict password complexity rules for registration."""
