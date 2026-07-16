@@ -32,7 +32,6 @@ class UserUpdate(BaseModel):
 class TransactionCreate(BaseModel):
     recipient_account: str = Field(..., description="6 to 8 digit account number")
     amount: float = Field(..., gt=0, description="Amount must be strictly greater than 0")
-    description: Optional[str] = Field(None, max_length=255)
     
     @field_validator('recipient_account')
     @classmethod

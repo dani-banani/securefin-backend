@@ -201,7 +201,6 @@ async def create_transaction(
         "sender_id": current_user["sub"],
         "recipient_account": transaction.recipient_account,
         "amount": transaction.amount,
-        "description": transaction.description,
         "status": "pending"
     }
 
