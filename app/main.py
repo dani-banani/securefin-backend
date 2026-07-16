@@ -108,7 +108,7 @@ async def register_user(user: UserCreate, response: Response, db: Client = Depen
         max_age=15 * 60
     )
     return {
-        "message": "User registered successfully",
+        "message": "User registered and login successfully",
         "user": {
             "id": user_record["id"],
             "email": user_record["email"],
