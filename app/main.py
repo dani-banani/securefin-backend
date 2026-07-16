@@ -9,7 +9,7 @@ from app.auth import hash_password, verify_password, create_access_token, verify
 import random
 from fastapi.exceptions import HTTPException as StarletteHTTPException 
 from fastapi.exceptions import RequestValidationError
-
+from datetime import datetime, timezone
 
 def raise_error(message: str, type: str, status_code: int = 400):
     raise HTTPException(
@@ -284,7 +284,6 @@ async def reject_transaction(
     """
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
-
     response = db.table("transactions")\
         .update({"status": "rejected"})\
         .eq("id", transaction_id)\
@@ -298,9 +297,8 @@ async def reject_transaction(
         "actor_id": current_user["sub"],
         "action": "REJECT",
         "target_transaction_id": transaction_id,
-        "timestamp": "now()"
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }).execute()
-
     return {"message": "Transaction has been successfully rejected."}
 
 @app.get("/api/users/{user_id}")
