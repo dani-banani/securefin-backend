@@ -310,6 +310,7 @@ async def get_my_transactions(
     
     processed_transactions = []
     for tx in response.data:
+        # Fetch the sender's account number based on the sender_id
         sender_info = db.table("users").select("account_number").eq("id", tx["sender_id"]).execute()
         sender_acc = sender_info.data[0]["account_number"] if sender_info.data else "Unknown"
         
