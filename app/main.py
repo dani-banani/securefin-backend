@@ -305,10 +305,9 @@ async def get_my_transactions(
     user_account_num = user_record.data[0]["account_number"]
 
     response = db.table("transactions") \
-        .select("*") \
+        .select("sender_id, recipient_account, amount, status, created_at") \
         .or_(f"sender_id.eq.{current_user['sub']},recipient_account.eq.{user_account_num}") \
         .execute()
-    
     return {"transactions": response.data}
 
 @app.patch("/api/users/{user_id}")
