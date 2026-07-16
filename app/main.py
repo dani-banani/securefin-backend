@@ -292,20 +292,14 @@ async def reject_transaction(
     if not response.data:
         raise HTTPException(status_code=404, detail="Transaction not found.")
 
-    try:
-        response = db.table("transactions").update({"status": "rejected"}).eq("id", transaction_id).execute()
-        if not response.data:
-            raise HTTPException(status_code=404, detail="Transaction not found.")
-        db.table("audit_logs").insert({
-            "actor_id": current_user["sub"],
-            "action": "REJECT",
-            "target_transaction_id": transaction_id,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }).execute()
-
-        return {"message": "Transaction has been successfully rejected."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    #logging
+    db.table("audit_logs").insert({
+        "actor_id": current_user["sub"],
+        "action": "REJECT",
+        "target_transaction_id": transaction_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }).execute()
+    return {"message": "Transaction has been successfully rejected."}
 
 @app.get("/api/users/{user_id}")
 async def get_user_profile(
