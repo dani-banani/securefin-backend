@@ -104,7 +104,7 @@ async def register_user(user: UserCreate, response: Response, db: Client = Depen
         value=token,
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
         max_age=15 * 60
     )
     return {
@@ -140,7 +140,7 @@ async def login_user(credentials: UserLogin, response: Response, db: Client = De
         value=token,
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
         max_age=15 * 60
     )
 
