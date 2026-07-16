@@ -288,6 +288,7 @@ async def get_user_profile(
         raise HTTPException(status_code=404, detail="User not found")
         
     return response.data[0]
+
 @app.get("/api/transactions/me")
 async def get_my_transactions(
     current_user: dict = Depends(get_current_user), 
@@ -295,27 +296,26 @@ async def get_my_transactions(
 ):
     """
     Fetch all transactions for the currently logged in user 
-    (Returns sender_account, recipient_account, amount, status, created_at)
     """
     user_record = db.table("users").select("account_number").eq("id", current_user["sub"]).execute()
     if not user_record.data:
         raise HTTPException(status_code=404, detail="User account not found")
-    
     user_account_num = user_record.data[0]["account_number"]
-
     response = db.table("transactions") \
         .select("sender_id, recipient_account, amount, status, created_at") \
         .or_(f"sender_id.eq.{current_user['sub']},recipient_account.eq.{user_account_num}") \
         .execute()
-    
     processed_transactions = []
     for tx in response.data:
-        # Fetch the sender's account number based on the sender_id
-        sender_info = db.table("users").select("account_number").eq("id", tx["sender_id"]).execute()
+        sender_info = db.table("users").select("name, account_number").eq("id", tx["sender_id"]).execute()
+        sender_name = sender_info.data[0]["name"] if sender_info.data else "Unknown"
         sender_acc = sender_info.data[0]["account_number"] if sender_info.data else "Unknown"
-        
+        recipient_info = db.table("users").select("name").eq("account_number", tx["recipient_account"]).execute()
+        recipient_name = recipient_info.data[0]["name"] if recipient_info.data else "Unknown"
         processed_transactions.append({
+            "sender_name": sender_name,
             "sender_account": sender_acc,
+            "recipient_name": recipient_name,
             "recipient_account": tx["recipient_account"],
             "amount": tx["amount"],
             "status": tx["status"],
@@ -323,7 +323,6 @@ async def get_my_transactions(
         })
 
     return {"transactions": processed_transactions}
-
 @app.patch("/api/users/{user_id}")
 async def update_user(
     user_id: str, 
