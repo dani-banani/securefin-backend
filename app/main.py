@@ -73,8 +73,7 @@ async def health_check():
     return {"status": "healthy", "service": "SecureFinBackend"}
 
 @app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
-async def register_user(user: UserCreate, db: Client = Depends(get_db)):
-    #check if user already exists
+async def register_user(user: UserCreate, response: Response, db: Client = Depends(get_db)):
     existing_user = db.table("users").select("*").eq("email", user.email).execute()
     if existing_user.data:
         raise_error("Email already exist", "email")
@@ -90,13 +89,32 @@ async def register_user(user: UserCreate, db: Client = Depends(get_db)):
         "role": "user",
         "account_number": account_num
     }
-    
+
     insert_response = db.table("users").insert(new_user).execute()
     
     if not insert_response.data:
         raise HTTPException(status_code=500, detail="Failed to create user")
-        
-    return {"message": "User registered successfully"}
+    
+    user_record = insert_response.data[0]
+    token_data = {"sub": user_record["id"], "role": user_record["role"], "email": user_record["email"]}
+    token = create_access_token(token_data)
+    
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=15 * 60
+    )
+    return {
+        "message": "User registered successfully",
+        "user": {
+            "id": user_record["id"],
+            "email": user_record["email"],
+            "role": user_record["role"]
+        }
+    }
 
 @app.post("/api/auth/login")
 async def login_user(credentials: UserLogin, response: Response, db: Client = Depends(get_db)):
@@ -225,6 +243,20 @@ async def approve_transaction(
     if not tx_check.data or tx_check.data[0]["status"] != "pending":
         raise HTTPException(status_code=400, detail="Transaction not found or already processed")
 
+    transaction = tx_check.data[0]
+    sender_id = transaction["sender_id"]
+    sender_record = db.table("users").select("balance").eq("id", sender_id).execute()
+    if not sender_record.data:
+        raise HTTPException(status_code=404, detail="Sender account not found")
+    ## balance check
+    sender_balance = sender_record.data[0]["balance"]
+    amount = transaction["amount"]
+    if sender_balance < amount:
+        db.table("transactions").update({"status": "rejected"}).eq("id", transaction_id).execute()
+        raise_error(f"Cannot approve: Sender no longer has sufficient funds (Balance: ${sender_balance:.2f})", "funds")
+    new_balance = sender_balance - amount
+    db.table("users").update({"balance": new_balance}).eq("id", sender_id).execute()
+
     #update the transaction status
     update_response = db.table("transactions").update({"status": "approved"}).eq("id", transaction_id).execute()
     
@@ -322,6 +354,7 @@ async def get_my_transactions(
         })
 
     return {"transactions": processed_transactions}
+
 @app.patch("/api/users/{user_id}")
 async def update_user(
     user_id: str, 
@@ -407,5 +440,12 @@ async def get_all_transactions(
         )
 
     response = db.table("transactions").select("*").execute()
+    sender_ids = list(set([tx["sender_id"] for tx in response.data]))
+    users_response = db.table("users").select("id, account_number").in_("id", sender_ids).execute()
+    user_map = {user["id"]: user["account_number"] for user in users_response.data}
+    transactions = []
+    for tx in response.data:
+        tx["sender_account"] = user_map.get(tx["sender_id"], "N/A")
+        transactions.append(tx)
 
-    return {"transactions": response.data}
+    return {"transactions": transactions}
