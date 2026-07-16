@@ -41,11 +41,11 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
     if isinstance(exc.detail, dict):
         return JSONResponse(
             status_code=exc.status_code,
-            content={"detail": exc.detail},
+            content=exc.detail,
         )
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": {"message": str(exc.detail), "type": "general"}},
+        content={"message": str(exc.detail), "type": "general"},
     )
 
 ORIGINS = [
@@ -75,16 +75,16 @@ async def health_check():
 @app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
 async def register_user(user: UserCreate, db: Client = Depends(get_db)):
     #check if user already exists
-    existing_user = db.table("users").select("*").eq("username", user.username).execute()
+    existing_user = db.table("users").select("*").eq("email", user.email).execute()
     if existing_user.data:
-        raise_error("username already exist", "username")
+        raise_error("Email already exist", "email")
     formatted_name = user.name.upper()
     #hash the password securely using bcrypt
     hashed_pw = hash_password(user.password)
     account_num = str(random.randint(10000000, 99999999))
     #insert into Supabase database
     new_user = {
-        "username": user.username,
+        "email": user.email,
         "name": formatted_name,
         "password_hash": hashed_pw,
         "role": "user",
@@ -101,19 +101,19 @@ async def register_user(user: UserCreate, db: Client = Depends(get_db)):
 @app.post("/api/auth/login")
 async def login_user(credentials: UserLogin, response: Response, db: Client = Depends(get_db)):
     #fetch user from Supabase
-    user_response = db.table("users").select("*").eq("username", credentials.username).execute()
+    user_response = db.table("users").select("*").eq("email", credentials.email).execute()
     
     if not user_response.data:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
         
     user = user_response.data[0]
 
     #verify password against the stored bcrypt hash
     if not verify_password(credentials.password, user["password_hash"]):
-        raise_error("Invalid password or username", "auth", status_code=401)
+        raise_error("Invalid password or email", "auth", status_code=401)
 
     #generate Asymmetric JWT Token
-    token_data = {"sub": user["id"], "role": user["role"], "username": user["username"]}
+    token_data = {"sub": user["id"], "role": user["role"], "email": user["email"]}
     token = create_access_token(token_data)
 
     #set the Secure HttpOnly Cookie
@@ -131,7 +131,7 @@ async def login_user(credentials: UserLogin, response: Response, db: Client = De
         "message": "Login successful",
         "user": {
             "id": user["id"],
-            "username": user["username"],
+            "email": user["email"],
             "role": user["role"]
         }
     }
@@ -283,12 +283,11 @@ async def get_user_profile(
         raise HTTPException(status_code=403, detail="Not authorized to view this profile")
 
     # Fetch data
-    response = db.table("users").select("id, username, name, role, balance, account_number").eq("id", user_id).execute()
+    response = db.table("users").select("id, email, name, role, balance, account_number").eq("id", user_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="User not found")
         
     return response.data[0]
-
 @app.get("/api/transactions/me")
 async def get_my_transactions(
     current_user: dict = Depends(get_current_user), 
@@ -296,9 +295,9 @@ async def get_my_transactions(
 ):
     """
     Fetch all transactions for the currently logged in user 
+    (Returns sender_account, recipient_account, amount, status, created_at)
     """
     user_record = db.table("users").select("account_number").eq("id", current_user["sub"]).execute()
-    
     if not user_record.data:
         raise HTTPException(status_code=404, detail="User account not found")
     
@@ -308,7 +307,21 @@ async def get_my_transactions(
         .select("sender_id, recipient_account, amount, status, created_at") \
         .or_(f"sender_id.eq.{current_user['sub']},recipient_account.eq.{user_account_num}") \
         .execute()
-    return {"transactions": response.data}
+    
+    processed_transactions = []
+    for tx in response.data:
+        sender_info = db.table("users").select("account_number").eq("id", tx["sender_id"]).execute()
+        sender_acc = sender_info.data[0]["account_number"] if sender_info.data else "Unknown"
+        
+        processed_transactions.append({
+            "sender_account": sender_acc,
+            "recipient_account": tx["recipient_account"],
+            "amount": tx["amount"],
+            "status": tx["status"],
+            "created_at": tx["created_at"]
+        })
+
+    return {"transactions": processed_transactions}
 
 @app.patch("/api/users/{user_id}")
 async def update_user(
@@ -343,12 +356,15 @@ async def get_current_session(
     """
     check for who is logged in
     """
+    user_data = db.table("users") \
+                .select("name, account_number") \
+                .eq("id", current_user["sub"]).execute().data[0]
     return {
         "user_id": current_user["sub"],
-        "username": current_user["username"],
+        "email": current_user["email"],
+        "name": user_data["name"],
         "role": current_user.get("role", "user"),
-        # Now 'db' exists so this line will work perfectly!
-        "account_number": db.table("users").select("account_number").eq("id", current_user["sub"]).execute().data[0]["account_number"]
+        "account_number": user_data["account_number"]
     }
 
 @app.post("/api/transactions/deposit")

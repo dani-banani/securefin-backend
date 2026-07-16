@@ -1,15 +1,16 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, EmailStr
 from typing import Optional
 import re
 
 # AUTHENTICATION MODELS
 class UserLogin(BaseModel):
-    username: str
+    email: EmailStr
     password: str
 
 class UserCreate(UserLogin):
-    """Extends UserLogin with strict password complexity rules for registration."""
+    """Extends UserLogin with strict password complexity rules and a name field for registration."""
     name: str = Field(..., min_length=1)
+    
     @field_validator('password')
     @classmethod
     def validate_password_complexity(cls, v):
@@ -23,21 +24,16 @@ class UserCreate(UserLogin):
             raise ValueError("Password must contain at least one special character")
         return v
 
-    @field_validator('username')
-    @classmethod
-    def validate_username_safe(cls, v):
-        if not v.isalnum():
-            raise ValueError("Username can only contain alphanumeric characters (prevents basic injection)")
-        return v
-
 class UserUpdate(BaseModel):
-    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    name: Optional[str] = None
 
 # TRANSACTION MODELS
 class TransactionCreate(BaseModel):
     recipient_account: str = Field(..., description="6 to 8 digit account number")
     amount: float = Field(..., gt=0, description="Amount must be strictly greater than 0")
     description: Optional[str] = Field(None, max_length=255)
+    
     @field_validator('recipient_account')
     @classmethod
     def validate_recipient(cls, v):
