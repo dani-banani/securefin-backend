@@ -122,7 +122,7 @@ async def login_user(credentials: UserLogin, response: Response, db: Client = De
         value=token,
         httponly=True,
         secure=False,
-        samesite="none",
+        samesite="lax",
         max_age=15 * 60
     )
 
@@ -143,7 +143,7 @@ async def logout_user(response: Response):
         key="access_token",
         httponly=True,
         secure=False,
-        samesite="none"
+        samesite="lax"
     )
     return {"message": "Logged out successfully"}
 
