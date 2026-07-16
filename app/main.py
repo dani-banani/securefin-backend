@@ -289,19 +289,25 @@ async def get_user_profile(
         
     return response.data[0]
 
-@app.get("/api/users/{user_id}/transactions")
-async def get_user_transactions(
-    user_id: str, 
+@app.get("/api/transactions/me")
+async def get_my_transactions(
     current_user: dict = Depends(get_current_user), 
     db: Client = Depends(get_db)
 ):
-    """Fetch all transactions involving a specific user"""
-    # Security Check
-    if current_user["sub"] != user_id and current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized to view these transactions")
+    """
+    Fetch all transactions for the currently logged in user 
+    """
+    user_record = db.table("users").select("account_number").eq("id", current_user["sub"]).execute()
+    
+    if not user_record.data:
+        raise HTTPException(status_code=404, detail="User account not found")
+    
+    user_account_num = user_record.data[0]["account_number"]
 
-    # Fetch where the user is either the sender OR the recipient
-    response = db.table("transactions").select("*").or_(f"sender_id.eq.{user_id},recipient_account.eq.{user_id}").execute()
+    response = db.table("transactions") \
+        .select("*") \
+        .or_(f"sender_id.eq.{current_user['sub']},recipient_account.eq.{user_account_num}") \
+        .execute()
     
     return {"transactions": response.data}
 
