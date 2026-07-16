@@ -121,7 +121,7 @@ async def login_user(credentials: UserLogin, response: Response, db: Client = De
         key="access_token",
         value=token,
         httponly=True,
-        secure=True,
+        secure=False,
         samesite="none",
         max_age=15 * 60
     )
@@ -142,7 +142,7 @@ async def logout_user(response: Response):
     response.delete_cookie(
         key="access_token",
         httponly=True,
-        # secure=True,
+        secure=False,
         samesite="none"
     )
     return {"message": "Logged out successfully"}
