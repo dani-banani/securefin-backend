@@ -10,20 +10,39 @@ import random
 from fastapi.exceptions import HTTPException as StarletteHTTPException 
 from fastapi.exceptions import RequestValidationError
 from datetime import datetime, timezone
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
-def raise_error(message: str, type: str, status_code: int = 400):
-    raise HTTPException(
-        status_code=status_code,
-        detail={"message": message, "type": type}
-    )
+ORIGINS = [
+    "https://secure-fin-auth-frontend-production.up.railway.app",
+    "http://localhost:5173",
+    "http://localhost:5174",
+]
 
 oauth2_scheme = APIKeyCookie(name="access_token", auto_error=False)
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers['Content-Security-Policy'] = "default-src 'self'"
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains; preload'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        return response
 
 app = FastAPI(
     title="SecureFin API",
     description="Backend for the SecureFin Portal",
     version="1.0.0"
 )
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+def raise_error(message: str, type: str, status_code: int = 400):
+    raise HTTPException(
+        status_code=status_code,
+        detail={"message": message, "type": type}
+    )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -47,12 +66,6 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
         status_code=exc.status_code,
         content={"message": str(exc.detail), "type": "general"},
     )
-
-ORIGINS = [
-    "https://secure-fin-auth-frontend-production.up.railway.app",
-    "http://localhost:5173",
-    "http://localhost:5174",
-]
 
 app.add_middleware(
     CORSMiddleware,
@@ -89,24 +102,24 @@ async def register_user(user: UserCreate, response: Response, db: Client = Depen
         "role": "user",
         "account_number": account_num
     }
-
-    insert_response = db.table("users").insert(new_user).execute()
+    if not existing_user.data:
+        insert_response = db.table("users").insert(new_user).execute()
     
-    if not insert_response.data:
-        raise HTTPException(status_code=500, detail="Failed to create user")
-    
-    user_record = insert_response.data[0]
-    token_data = {"sub": user_record["id"], "role": user_record["role"], "email": user_record["email"]}
-    token = create_access_token(token_data)
-    
-    response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,
-        secure=True,
-        samesite="none",
-        max_age=15 * 60
-    )
+        if not insert_response.data:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+        
+        user_record = insert_response.data[0]
+        token_data = {"sub": user_record["id"], "role": user_record["role"], "email": user_record["email"]}
+        token = create_access_token(token_data)
+        
+        response.set_cookie(
+            key="access_token",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=15 * 60
+        )
     return {
         "message": "User registered and login successfully",
         "user": {
